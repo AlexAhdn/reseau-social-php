@@ -1,2 +1,2 @@
 # reseau-social-php
-Création d'une application mobile identique à facebook
+Création d'une application web identique à facebook
