@@ -1,11 +1,4 @@
 services:
-  # Base de données PostgreSQL
-  - type: pserv
-    name: reseau-social-db
-    env: postgres
-    plan: free
-    startCommand: postgres
-
   # Service web PHP
   - type: web
     name: reseau-social-web
@@ -13,9 +6,5 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: reseau-social-db
-          property: connectionString
       - key: PHP_VERSION
         value: 8.1
