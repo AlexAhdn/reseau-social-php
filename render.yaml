@@ -2,7 +2,7 @@ services:
   # Base de données PostgreSQL
   - type: pserv
     name: reseau-social-db
-    env: postgres
+    env: postgresql
     plan: free
 
   # Service web PHP
