@@ -47,6 +47,7 @@ if ($database_url) {
         class PDOStatementAdapter {
             private $stmt;
             private $params = [];
+            private $result = null;
             
             public function __construct($stmt) {
                 $this->stmt = $stmt;
@@ -58,12 +59,20 @@ if ($database_url) {
             }
             
             public function execute() {
-                return $this->stmt->execute($this->params);
+                $this->result = $this->stmt->execute($this->params);
+                return $this->result;
             }
             
             public function get_result() {
-                $this->stmt->execute($this->params);
+                if ($this->result === false) {
+                    return new PDOResultAdapter(null);
+                }
                 return new PDOResultAdapter($this->stmt);
+            }
+            
+            public function store_result() {
+                // PDO n'a pas besoin de store_result
+                return true;
             }
             
             public function close() {
@@ -73,23 +82,29 @@ if ($database_url) {
         
         class PDOResultAdapter {
             private $stmt;
+            private $data = [];
+            private $position = 0;
             
             public function __construct($stmt) {
                 $this->stmt = $stmt;
+                if ($stmt) {
+                    $this->data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                }
             }
             
             public function fetch_assoc() {
-                return $this->stmt->fetch(PDO::FETCH_ASSOC);
+                if ($this->position < count($this->data)) {
+                    return $this->data[$this->position++];
+                }
+                return false;
             }
             
             public function num_rows() {
-                // PDO n'a pas cette méthode, on simule
-                $count = 0;
-                while ($this->stmt->fetch()) {
-                    $count++;
-                }
-                $this->stmt->execute(); // Réexécuter pour réutiliser
-                return $count;
+                return count($this->data);
+            }
+            
+            public function data_seek($offset) {
+                $this->position = $offset;
             }
         }
         
@@ -112,8 +127,6 @@ if ($database_url) {
         die("Échec de la connexion à la base de données : " . $conn->connect_error);
     }
 }
-
-// ... (gardez le reste des fonctions comme avant)
 
 /**
  * Fonction pour échapper les sorties HTML afin de prévenir les attaques XSS.
@@ -146,7 +159,7 @@ function isLoggedIn() {
  *
  * @param int $user1_id L'ID du premier utilisateur.
  * @param int $user2_id L'ID du second utilisateur.
- * @param PDO $conn L'objet de connexion à la base de données.
+ * @param object $conn L'objet de connexion à la base de données.
  * @return array Un tableau de messages, chacun étant un tableau associatif.
  */
 function getMessagesBetweenUsers($user1_id, $user2_id, $conn) {
@@ -160,10 +173,15 @@ function getMessagesBetweenUsers($user1_id, $user2_id, $conn) {
             WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
             ORDER BY m.created_at ASC";
 
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$user1_id, $user2_id, $user2_id, $user1_id]);
-    $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+    if ($stmt = $conn->prepare($sql)) {
+        $stmt->bind_param("iiii", $user1_id, $user2_id, $user2_id, $user1_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $messages[] = $row;
+        }
+        $stmt->close();
+    }
     return $messages;
 }
 
@@ -175,25 +193,31 @@ function getMessagesBetweenUsers($user1_id, $user2_id, $conn) {
  * @param string $type Le type de notification (ex: 'follow', 'like', 'comment').
  * @param string $content Le contenu du message de la notification.
  * @param string|null $link Le lien associé à la notification (ex: vers un profil ou un post).
- * @param PDO $conn L'objet de connexion à la base de données.
+ * @param object $conn L'objet de connexion à la base de données.
  * @return bool Vrai si la notification a été ajoutée, faux sinon.
  */
 function addNotification($user_id, $sender_id, $type, $content, $link = null, $conn) {
     $sql = "INSERT INTO notifications (user_id, sender_id, type, content, link) VALUES (?, ?, ?, ?, ?)";
-    $stmt = $conn->prepare($sql);
-    return $stmt->execute([$user_id, $sender_id, $type, $content, $link]);
+    if ($stmt = $conn->prepare($sql)) {
+        $stmt->bind_param("iisss", $user_id, $sender_id, $type, $content, $link);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+    return false;
 }
 
 /**
  * Récupère les notifications pour un utilisateur donné.
  *
  * @param int $user_id L'ID de l'utilisateur.
- * @param PDO $conn L'objet de connexion à la base de données.
+ * @param object $conn L'objet de connexion à la base de données.
  * @param bool $unread_only Si vrai, ne récupère que les notifications non lues.
  * @param int $limit Le nombre maximum de notifications à récupérer.
  * @return array Un tableau de notifications.
  */
 function getNotifications($user_id, $conn, $unread_only = false, $limit = 10) {
+    $notifications = [];
     $sql = "SELECT n.id, n.sender_id, n.type, n.content, n.is_read, n.created_at, n.link, u.username AS sender_username, u.profile_picture AS sender_profile_picture
             FROM notifications n
             LEFT JOIN users u ON n.sender_id = u.id
@@ -203,16 +227,23 @@ function getNotifications($user_id, $conn, $unread_only = false, $limit = 10) {
     }
     $sql .= " ORDER BY n.created_at DESC LIMIT ?";
 
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$user_id, $limit]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($stmt = $conn->prepare($sql)) {
+        $stmt->bind_param("ii", $user_id, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $notifications[] = $row;
+        }
+        $stmt->close();
+    }
+    return $notifications;
 }
 
 /**
  * Marque des notifications comme lues.
  *
  * @param array $notification_ids Un tableau d'IDs de notifications à marquer comme lues.
- * @param PDO $conn L'objet de connexion à la base de données.
+ * @param object $conn L'objet de connexion à la base de données.
  * @return bool Vrai si les notifications ont été mises à jour, faux sinon.
  */
 function markNotificationsAsRead($notification_ids, $conn) {
@@ -220,9 +251,16 @@ function markNotificationsAsRead($notification_ids, $conn) {
         return true; // Rien à faire
     }
     $placeholders = implode(',', array_fill(0, count($notification_ids), '?'));
+    $types = str_repeat('i', count($notification_ids)); // 'i' pour chaque ID entier
+
     $sql = "UPDATE notifications SET is_read = TRUE WHERE id IN ($placeholders)";
-    $stmt = $conn->prepare($sql);
-    return $stmt->execute($notification_ids);
+    if ($stmt = $conn->prepare($sql)) {
+        $stmt->bind_param($types, ...$notification_ids);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
+    return false;
 }
 
 /**
