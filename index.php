@@ -1,16 +1,43 @@
 <?php
 // index.php
+session_start();
 require_once 'config.php';
 
 if (!isLoggedIn()) {
     redirect('login.php');
 }
 
+$username = isset($_SESSION['username']) ? $_SESSION['username'] : '';
+$profile_picture = isset($_SESSION['profile_picture']) && $_SESSION['profile_picture'] ? $_SESSION['profile_picture'] : 'default.jpg';
+$profile_picture_path = 'uploads/profiles/' . $profile_picture;
+if (!file_exists($profile_picture_path)) {
+    $profile_picture = 'default.jpg';
+    $profile_picture_path = 'uploads/profiles/default.jpg';
+}
+
 $user_id = $_SESSION['user_id'];
-$username = $_SESSION['username'];
-$profile_picture = $_SESSION['profile_picture'] ?? 'avatar.jpg';
 
 $profilePicture = !empty($user['profile_picture']) ? $user['profile_picture'] : 'avatar.jpg';
+
+// Récupérer la photo de profil à jour depuis la base de données
+$sql = "SELECT profile_picture FROM users WHERE id = ?";
+if ($stmt = $conn->prepare($sql)) {
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->bind_result($profile_picture_db);
+    if ($stmt->fetch() && !empty($profile_picture_db)) {
+        $_SESSION['profile_picture'] = $profile_picture_db;
+    } else {
+        $_SESSION['profile_picture'] = 'default.jpg';
+    }
+    $stmt->close();
+}
+$profile_picture = $_SESSION['profile_picture'];
+$profile_picture_path = 'uploads/profiles/' . $profile_picture;
+if (!file_exists($profile_picture_path)) {
+    $profile_picture = 'default.jpg';
+    $profile_picture_path = 'uploads/profiles/default.jpg';
+}
 
 
 
@@ -372,7 +399,7 @@ $conn->close();
 
     /* NOUVEAU STYLE HEADER */
     .header {
-        background-color: #2c3e50; /* Bleu Nuit Profond */
+        background-color: #1a3a3a; /* Vert-bleu très foncé */
         padding: 5px 20px;
         display: flex;
         justify-content: space-between;
@@ -393,7 +420,7 @@ $conn->close();
     .header-left .logo {
         font-size: 28px;
         font-weight: bold;
-        color: #f1c40f; /* Or Étincelant pour le logo */
+        color: #008080; /* Sarcelle pour le logo */
         text-decoration: none;
         line-height: 1;
     }
@@ -402,7 +429,7 @@ $conn->close();
         position: relative;
     }
     .header-left .search-bar input {
-        background-color: #34495e; /* Gris Saphir Foncé pour la barre de recherche */
+        background-color: #34495e; /* Conservé pour un bon contraste avec le texte clair */
         border: none;
         border-radius: 20px;
         padding: 8px 15px 8px 40px;
@@ -437,11 +464,11 @@ $conn->close();
     }
     .header-center .nav-icon:hover {
         background-color: #34495e; /* Gris Saphir Foncé au survol */
-        color: #f1c40f; /* Or Étincelant au survol */
+        color: #008080; /* Sarcelle au survol */
     }
     .header-center .nav-icon.active {
-        color: #f1c40f; /* Or Étincelant pour l'icône active */
-        border-bottom: 3px solid #f1c40f; /* Bordure or en dessous */
+        color: #008080; /* Sarcelle pour l'icône active */
+        border-bottom: 3px solid #008080; /* Bordure sarcelle en dessous */
         background-color: transparent;
         padding-bottom: 5px;
     }
@@ -461,9 +488,10 @@ $conn->close();
         object-fit: cover;
         cursor: pointer;
         border: 2px solid transparent;
+        vertical-align: middle;
     }
     .header-right .profile-thumbnail:hover {
-        border-color: #f1c40f; /* Or Étincelant au survol */
+        border-color: #008080; /* Sarcelle au survol */
     }
 
     .header-right .icon-button {
@@ -480,7 +508,19 @@ $conn->close();
         transition: background-color .2s;
     }
     .header-right .icon-button:hover {
-        background-color: #2c3e50; /* Bleu Nuit Profond au survol */
+        background-color: #1a3a3a; /* Vert-bleu très foncé au survol */
+    }
+    .notif-badge {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: #e74c3c;
+        color: #fff;
+        border-radius: 50%;
+        padding: 2px 6px;
+        font-size: 12px;
+        font-weight: bold;
+        z-index: 10;
     }
 
     /* FIN NOUVEAU STYLE HEADER */
@@ -497,13 +537,15 @@ $conn->close();
 
     /* Nouvelle Sidebar Gauche */
     .left-sidebar {
-        width: 280px;
-        padding-right: 10px;
-        align-self: flex-start;
-        position: sticky;
+        position: fixed !important;
         top: 76px;
-        overflow-y: auto;
+        left: 0;
+        width: 280px;
         height: calc(100vh - 76px);
+        overflow-y: auto;
+        z-index: 100;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
     }
 
     .sidebar-item {
@@ -558,6 +600,7 @@ $conn->close();
 
 
     .main-feed {
+        margin-left: 280px;
         flex-grow: 1;
         max-width: 600px;
     }
@@ -573,6 +616,8 @@ $conn->close();
         top: 76px;
         overflow-y: auto;
         height: calc(100vh - 76px);
+        margin-left: 20px;
+        flex-shrink: 0;
     }
 
     .right-sidebar h3 {
@@ -634,11 +679,11 @@ $conn->close();
 
     /* Bouton "Suivre" */
     .sidebar-user-item .action-button.follow-button {
-        background-color: #f1c40f; /* Or Étincelant */
-        color: #2c3e50; /* Bleu Nuit Profond pour le texte */
+        background-color: #008080; /* Sarcelle */
+        color: white; /* Texte blanc pour un meilleur contraste */
     }
     .sidebar-user-item .action-button.follow-button:hover {
-        background-color: #f39c12; /* Or plus foncé au survol */
+        background-color: #006666; /* Sarcelle plus foncé au survol */
     }
 
     /* Bouton "Abonné(e)" */
@@ -686,8 +731,8 @@ $conn->close();
     .create-post { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,.1); margin-bottom: 20px; }
     .create-post textarea { width: calc(100% - 20px); padding: 10px; border: 1px solid #dcdde1; border-radius: 6px; font-size: 16px; min-height: 80px; resize: vertical; margin-bottom: 10px; }
     .create-post input[type="file"] { margin-bottom: 10px; }
-    .create-post button { background-color: #f1c40f; /* Or Étincelant */ color: #2c3e50; /* Bleu Nuit Profond pour le texte */ border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; transition: background-color .2s; }
-    .create-post button:hover { background-color: #f39c12; } /* Or plus foncé au survol */
+    .create-post button { background-color: #008080; /* Sarcelle */ color: white; /* Texte blanc pour un meilleur contraste */ border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; transition: background-color .2s; }
+    .create-post button:hover { background-color: #006666; } /* Sarcelle plus foncé au survol */
     .post-error { color: #e74c3c; font-size: 14px; margin-bottom: 10px; } /* Rouge d'erreur standard */
 
     .post { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,.1); margin-bottom: 20px; }
@@ -736,10 +781,10 @@ $conn->close();
         color: #95a5a6; /* Gris Argenté par défaut */
     }
     .like-button.liked .fa-thumbs-up {
-        color: #f1c40f; /* Or Étincelant quand 'liké' */
+        color: #008080; /* Sarcelle quand 'liké' */
     }
     .like-container:hover .like-button .fa-thumbs-up {
-        color: #f1c40f; /* Or Étincelant au survol du conteneur */
+        color: #008080; /* Sarcelle au survol du conteneur */
     }
 
 
@@ -764,7 +809,7 @@ $conn->close();
     }
     .post-actions .comment-button:hover {
         background-color: #f5f5f5;
-        color: #f1c40f; /* Or Étincelant au survol */
+        color: #008080; /* Sarcelle au survol */
     }
 
     .add-comment-form {
@@ -782,8 +827,8 @@ $conn->close();
     .comment-timestamp { font-size: 12px; color: #95a5a6; margin-left: 5px; }
 
     .add-comment-form input[type="text"] { flex-grow: 1; padding: 8px 12px; border: 1px solid #bdc3c7; border-radius: 18px; margin-right: 10px; font-size: 14px; background-color: #ecf0f1; /* Gris Clair Doux */ }
-    .add-comment-form button { background-color: #f1c40f; /* Or Étincelant */ color: #2c3e50; /* Bleu Nuit Profond pour le texte */ border: none; padding: 8px 15px; border-radius: 18px; cursor: pointer; font-size: 14px; transition: background-color .2s; }
-    .add-comment-form button:hover { background-color: #f39c12; } /* Or plus foncé au survol */
+    .add-comment-form button { background-color: #008080; /* Sarcelle */ color: white; /* Texte blanc pour un meilleur contraste */ border: none; padding: 8px 15px; border-radius: 18px; cursor: pointer; font-size: 14px; transition: background-color .2s; }
+    .add-comment-form button:hover { background-color: #006666; } /* Sarcelle plus foncé au survol */
     .comment-error { color: #e74c3c; font-size: 14px; margin-top: 5px; } /* Rouge d'erreur standard */
 
 
@@ -804,7 +849,7 @@ $conn->close();
     }
 
     .chat-header {
-        background-color: #2c3e50; /* Bleu Nuit Profond pour l'en-tête du chat */
+        background-color: #1a3a3a; /* Vert-bleu très foncé pour l'en-tête du chat */
         color: white;
         padding: 10px 15px;
         border-radius: 8px 8px 0 0;
@@ -942,7 +987,7 @@ $conn->close();
         gap: 5px;
     }
     .message-bubble.sent {
-        background-color: #34495e; /* Gris Saphir Foncé pour les messages envoyés */
+        background-color: #1a3a3a; /* Vert-bleu très foncé pour les messages envoyés */
         color: white;
         border-bottom-right-radius: 2px;
         margin-left: 5px;
@@ -1003,80 +1048,262 @@ $conn->close();
     .chat-conversation .chat-input-area button {
         background: none;
         border: none;
-        color: #f1c40f; /* Or Étincelant pour le bouton d'envoi */
+        color: #008080; /* Sarcelle pour le bouton d'envoi */
         font-size: 20px;
         cursor: pointer;
         padding: 5px;
         transition: color .2s;
     }
     .chat-conversation .chat-input-area button:hover {
-        color: #f39c12; /* Or plus foncé au survol */
+        color: #006666; /* Sarcelle plus foncé au survol */
     }
+
+    .upload-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #1aaf5d;
+        color: #fff;
+        border: none;
+        border-radius: 20px;
+        padding: 8px 18px;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-bottom: 10px;
+    }
+    .upload-btn:hover {
+        background: #188d4a;
+    }
+    .upload-btn i {
+        font-size: 1.2em;
+    }
+    input[type="file"] {
+        display: none;
+    }
+</style>
+<style>
+.sidebar-classic {
+    position: fixed;
+    top: 76px;
+    left: 0;
+    width: 280px;
+    height: calc(100vh - 76px);
+    overflow-y: auto;
+    z-index: 100;
+}
+.sidebar-classic a {
+    display: block;
+    margin-bottom: 22px;
+    text-decoration: none;
+    color: #1a3a3a;
+    font-weight: 500;
+    font-size: 1.08rem;
+    padding: 12px 18px;
+    border-radius: 8px;
+    transition: background 0.2s, color 0.2s;
+    text-align: center;
+    width: 90%;
+}
+.sidebar-classic a:hover {
+    background: #1a3a3a;
+    color: #fff;
+}
+.sidebar-classic a:last-child {
+    margin-bottom: 0;
+}
+.sidebar-classic .sidebar-profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+}
+.sidebar-classic .sidebar-profile-img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #4dcab1;
+    background: #fff;
+}
+.sidebar-classic .sidebar-profile-name {
+    margin-top: 10px;
+    font-weight: bold;
+    color: #1a3a3a;
+    font-size: 1.1rem;
+    text-align: center;
+}
+.main-feed {
+    margin-left: 280px;
+    flex: 1 1 0%;
+    max-width: 600px;
+}
+.main-content-wrapper {
+    display: flex;
+    max-width: 1200px;
+    margin: 20px auto;
+    gap: 20px;
+    padding: 0 20px;
+}
+</style>
+<style>
+.sidebar-toggle {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 2em;
+  margin-right: 10px;
+  cursor: pointer;
+  display: none;
+  z-index: 1101;
+}
+@media (max-width: 900px) {
+  .sidebar-toggle {
+    display: block !important;
+  }
+  .sidebar-classic {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80vw !important;
+    max-width: 320px !important;
+    height: 100vh !important;
+    background: #fff !important;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.15) !important;
+    z-index: 1100 !important;
+    overflow-y: auto !important;
+    transition: transform 0.3s;
+    transform: translateX(-100%);
+  }
+  .sidebar-classic.open {
+    display: block !important;
+    transform: translateX(0);
+  }
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.25);
+    z-index: 1099;
+  }
+  .sidebar-overlay.active {
+    display: block;
+  }
+  .close-sidebar {
+    display: block !important;
+  }
+  .header-center,
+  .header-right {
+    display: none !important;
+  }
+  .header-left {
+    justify-content: flex-start !important;
+    width: 100% !important;
+  }
+  .logo {
+    margin-left: 10px !important;
+    font-size: 1.3em !important;
+  }
+  .sidebar-classic,
+  .left-sidebar,
+  .right-sidebar,
+  .sidebar-overlay {
+    display: none !important;
+  }
+  .main-feed {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    max-width: 100vw !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    margin-top: 20px !important;
+  }
+  .main-content-wrapper {
+    padding: 0 !important;
+    gap: 0 !important;
+    justify-content: center !important;
+  }
+}
+@media (max-width: 900px) {
+  .sidebar-toggle {
+    display: block !important;
+  }
+  .header-center,
+  .header-right {
+    display: none !important;
+  }
+  .header-left {
+    justify-content: center !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    position: relative !important;
+  }
+  .sidebar-toggle {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 10px;
+  }
+  .logo {
+    margin: 0 auto !important;
+    font-size: 1.3em !important;
+    display: block !important;
+  }
+}
 </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-left">
-            <a href="index.php" class="logo">f</a> <div class="search-bar">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" placeholder="Rechercher sur Axe-Network">
-            </div>
+      <div class="header">
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Ouvrir le menu" style="display:none;">
+          <i class="fas fa-bars"></i>
+        </button>
+        <div class="header-left" style="justify-content: center; min-width: 300px;">
+            <a href="index.php" class="logo" style="color:#fff;">Nexa</a>
         </div>
         <div class="header-center">
-            <a href="index.php" class="nav-icon active"><i class="fas fa-home"></i></a>
-            <a href="#" class="nav-icon"><i class="fas fa-user-friends"></i></a>
-            <a href="#" class="nav-icon"><i class="fas fa-tv"></i></a>
-            <a href="#" class="nav-icon"><i class="fas fa-store"></i></a>
-            <a href="#" class="nav-icon"><i class="fas fa-users"></i></a>
+            <a href="index.php" class="nav-icon<?php if(basename($_SERVER['REQUEST_URI']) == 'index.php') echo ' active'; ?>"><i class="fas fa-home"></i></a>
+            <a href="friends_list.php" class="nav-icon<?php if(basename($_SERVER['REQUEST_URI']) == 'friends_list.php') echo ' active'; ?>"><i class="fas fa-user-friends"></i></a>
+            <a href="messages.php" class="nav-icon<?php if(basename($_SERVER['REQUEST_URI']) == 'messages.php') echo ' active'; ?>" title="Messagerie"><i class="fab fa-facebook-messenger"></i></a>
+            <a href="notif.php" class="nav-icon<?php if(basename($_SERVER['REQUEST_URI']) == 'notif.php') echo ' active'; ?>" title="Notifications"><i class="fas fa-bell"></i></a>
         </div>
         <div class="header-right">
             <a href="profile.php?username=<?php echo urlencode($username); ?>">
-                <img src="uploads/profiles/<?php echo h($profile_picture); ?>" alt="Photo de profil" class="profile-thumbnail">
+                <img src="<?php echo htmlspecialchars($profile_picture_path); ?>" alt="Photo de profil" class="profile-thumbnail">
             </a>
-            <div class="icon-button" id="messenger-icon"><i class="fab fa-facebook-messenger"></i></div>
-            <div class="icon-button"><a href="notif.php" class="icon-button" title="Notifications"><i class="fas fa-bell"></i></a></div>
-            <a href="logout.php" class="icon-button" title="Déconnexion"><i class="fas fa-sign-out-alt"></i></a> </div>
+            <a href="logout.php" class="icon-button" title="Déconnexion"><i class="fas fa-sign-out-alt"></i></a>
+        </div>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <div class="sidebar-classic">
+      <button class="close-sidebar" id="closeSidebar" style="display:none;position:absolute;top:10px;right:10px;background:none;border:none;font-size:2em;color:#1a3a3a;z-index:1200;">&times;</button>
+      <div class="sidebar-profile">
+          <img src="<?php echo htmlspecialchars($profile_picture_path); ?>" alt="Photo de profil" class="sidebar-profile-img">
+          <div class="sidebar-profile-name"><?php echo isset($username) ? htmlspecialchars($username) : 'Utilisateur'; ?></div>
+      </div>
+      <a href="profile.php?username=<?php echo urlencode($username); ?>"><i class="fas fa-user-circle"></i> Mon profil</a>
+      <a href="friends_list.php"><i class="fas fa-user-friends"></i> Amis</a>
+      <a href="messages.php"><i class="fab fa-facebook-messenger"></i> Messages</a>
+      <a href="notif.php"><i class="fas fa-bell"></i> Notifications</a>
+      <a href="settings.php"><i class="fas fa-cog"></i> Paramètres</a>
+      <a href="logout.php" style="color:#c0392b;position:absolute;bottom:20px;left:20px;"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
     </div>
 
     <div class="main-content-wrapper">
-        <div class="left-sidebar">
-            <a href="profile.php?username=<?php echo urlencode($username); ?>" class="sidebar-item">
-                <img src="uploads/profiles/<?php echo h($profile_picture); ?>" alt="Photo de profil">
-                <span><?php echo h($username); ?></span>
-            </a>
-            <a href="#" class="sidebar-item">
-                <i class="icon fas fa-user-friends"></i>
-                <span>Friends</span>
-            </a>
-            <a href="#" class="sidebar-item">
-                <i class="icon fas fa-bookmark"></i>
-                <span>Saved</span>
-            </a>
-            <a href="#" class="sidebar-item">
-                <i class="icon fas fa-users"></i>
-                <span>Groups</span>
-            </a>
-            <a href="theme.php" class="sidebar-item">
-                <i class="icon fas fa-store"></i>
-                <span>thème</span>
-            </a>
-            <a href="#" class="sidebar-item">
-                <i class="icon fas fa-calendar-alt"></i>
-                <span>Memories</span>
-            </a>
-            <a href="#" class="sidebar-item">
-                <i class="icon fas fa-chevron-circle-down"></i>
-                <span>See more</span>
-            </a>
-
-        </div>
-
         <div class="main-feed">
             <div class="create-post">
                 <h3>Créer une publication</h3>
                 <form action="<?php echo h($_SERVER["PHP_SELF"]); ?>" method="post" enctype="multipart/form-data">
                     <textarea name="content" placeholder="Quoi de neuf, <?php echo h($username); ?> ?"></textarea>
-                    <input type="file" name="post_image" accept="image/*">
+                    <label for="post_image" class="upload-btn"><i class="fas fa-image"></i> Ajouter une image</label>
+                    <input type="file" name="post_image" id="post_image" accept="image/*">
                     <?php if (!empty($post_error)): ?>
                         <div class="post-error"><?php echo h($post_error); ?></div>
                     <?php endif; ?>
@@ -1673,6 +1900,31 @@ $conn->close();
 
             updateEmptyListMessages();
         });
+    </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var sidebar = document.querySelector('.sidebar-classic');
+      var toggle = document.getElementById('sidebarToggle');
+      var overlay = document.getElementById('sidebarOverlay');
+      var closeBtn = document.getElementById('closeSidebar');
+      if(toggle && sidebar && overlay && closeBtn) {
+        toggle.addEventListener('click', function() {
+          sidebar.classList.add('open');
+          overlay.classList.add('active');
+          closeBtn.style.display = 'block';
+        });
+        closeBtn.addEventListener('click', function() {
+          sidebar.classList.remove('open');
+          overlay.classList.remove('active');
+          closeBtn.style.display = 'none';
+        });
+        overlay.addEventListener('click', function() {
+          sidebar.classList.remove('open');
+          overlay.classList.remove('active');
+          closeBtn.style.display = 'none';
+        });
+      }
+    });
     </script>
 </body>
 </html>
