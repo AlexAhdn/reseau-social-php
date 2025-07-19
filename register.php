@@ -32,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt->execute();
             $result = $stmt->get_result();
             
-            if ($result->num_rows > 0) {
+            if ($result->num_rows() > 0) {
                 $error = "Cet email est déjà utilisé.";
             } else {
                 // Vérifier si le nom d'utilisateur existe déjà
@@ -42,7 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmt->execute();
                     $result = $stmt->get_result();
                     
-                    if ($result->num_rows > 0) {
+                    if ($result->num_rows() > 0) {
                         $error = "Ce nom d'utilisateur est déjà utilisé.";
                     } else {
                         // Créer le compte
@@ -53,7 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             
                             if ($stmt->execute()) {
                                 // Connexion automatique
-                                $_SESSION['user_id'] = $stmt->insert_id;
+                                $_SESSION['user_id'] = $stmt->insert_id();
                                 $_SESSION['username'] = $username;
                                 redirect('index.php');
                             } else {
