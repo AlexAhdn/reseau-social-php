@@ -9,10 +9,9 @@ services:
   # Service web PHP
   - type: web
     name: reseau-social-web
-    env: php
+    env: docker
     plan: free
-    buildCommand: composer install
-    startCommand: php -S 0.0.0.0:$PORT
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: DATABASE_URL
         fromDatabase:
