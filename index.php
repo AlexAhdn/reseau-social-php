@@ -24,19 +24,14 @@ $sql = "SELECT profile_picture FROM users WHERE id = ?";
 if ($stmt = $conn->prepare($sql)) {
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
-    $stmt->bind_result($profile_picture_db);
-    if ($stmt->fetch() && !empty($profile_picture_db)) {
-        $_SESSION['profile_picture'] = $profile_picture_db;
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    if ($row && !empty($row['profile_picture'])) {
+        $_SESSION['profile_picture'] = $row['profile_picture'];
     } else {
         $_SESSION['profile_picture'] = 'default.jpg';
     }
     $stmt->close();
-}
-$profile_picture = $_SESSION['profile_picture'];
-$profile_picture_path = 'uploads/profiles/' . $profile_picture;
-if (!file_exists($profile_picture_path)) {
-    $profile_picture = 'default.jpg';
-    $profile_picture_path = 'uploads/profiles/default.jpg';
 }
 
 
