@@ -3,6 +3,110 @@
 session_start();
 require_once 'config.php';
 
+// Créer les tables manquantes automatiquement
+function createMissingTables($conn) {
+    $tables = [
+        "CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            profile_picture VARCHAR(255) DEFAULT 'default.jpg',
+            bio TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )",
+        "CREATE TABLE IF NOT EXISTS posts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            content TEXT,
+            image_path VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )",
+        "CREATE TABLE IF NOT EXISTS likes (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(post_id, user_id)
+        )",
+        "CREATE TABLE IF NOT EXISTS comments (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )",
+        "CREATE TABLE IF NOT EXISTS follows (
+            id SERIAL PRIMARY KEY,
+            follower_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            followed_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(follower_id, followed_id)
+        )",
+        "CREATE TABLE IF NOT EXISTS friendships (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            friend_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            status VARCHAR(20) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, friend_id)
+        )",
+        "CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,
+            sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )",
+        "CREATE TABLE IF NOT EXISTS notifications (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            type VARCHAR(50) NOT NULL,
+            content TEXT NOT NULL,
+            link VARCHAR(255),
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )",
+        "CREATE TABLE IF NOT EXISTS saved_posts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, post_id)
+        )"
+    ];
+    
+    foreach ($tables as $sql) {
+        try {
+            $stmt = $conn->prepare($sql);
+            $stmt->execute();
+        } catch (Exception $e) {
+            // Ignore les erreurs si les tables existent déjà
+        }
+    }
+    
+    // Créer un utilisateur de test s'il n'existe pas
+    try {
+        $sql = "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?) ON CONFLICT (email) DO NOTHING";
+        $stmt = $conn->prepare($sql);
+        $username = 'test';
+        $email = 'test@test.com';
+        $password_hash = password_hash('test123', PASSWORD_DEFAULT);
+        $stmt->bind_param("sss", $username, $email, $password_hash);
+        $stmt->execute();
+    } catch (Exception $e) {
+        // Ignore si l'utilisateur existe déjà
+    }
+}
+
+// Appeler la fonction pour créer les tables
+createMissingTables($conn);
+
 if (!isLoggedIn()) {
     redirect('login.php');
 }
