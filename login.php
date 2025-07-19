@@ -2,34 +2,41 @@
 session_start();
 require_once 'config.php';
 
-// DEBUG : Afficher les utilisateurs
-if (isset($_GET['debug'])) {
-    echo "<h2>Test de connexion à la base de données</h2>";
+$error = "";
+$email = "";
+$password = "";
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
     
-    try {
-        $sql = "SELECT id, username, email FROM users";
+    if (empty($email) || empty($password)) {
+        $error = "Veuillez remplir tous les champs.";
+    } else {
+        $sql = "SELECT id, username, password_hash FROM users WHERE email = ?";
         if ($stmt = $conn->prepare($sql)) {
+            $stmt->bind_param("s", $email);
             $stmt->execute();
             $result = $stmt->get_result();
             
-            echo "<h3>Utilisateurs dans la base :</h3>";
             if ($result->num_rows() > 0) {
-                while ($row = $result->fetch_assoc()) {
-                    echo "ID: " . $row['id'] . " - Username: " . $row['username'] . " - Email: " . $row['email'] . "<br>";
+                $user = $result->fetch_assoc();
+                if (password_verify($password, $user['password_hash'])) {
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    redirect('index.php');
+                } else {
+                    $error = "Mot de passe incorrect.";
                 }
             } else {
-                echo "Aucun utilisateur trouvé dans la base.";
+                $error = "Aucun compte trouvé avec cet email.";
             }
+            $stmt->close();
         } else {
-            echo "Erreur de préparation de la requête.";
+            $error = "Erreur de base de données.";
         }
-    } catch (Exception $e) {
-        echo "Erreur : " . $e->getMessage();
     }
-    exit();
 }
-
-// ... reste du code login.php ...
 ?>
 
 <!DOCTYPE html>
@@ -60,7 +67,7 @@ if (isset($_GET['debug'])) {
         .login-title {
             text-align: center;
             margin-bottom: 30px;
-            color: #1a3a3a;
+            color: #1a73e8;
             font-size: 24px;
             font-weight: bold;
         }
@@ -81,15 +88,15 @@ if (isset($_GET['debug'])) {
             font-size: 16px;
             box-sizing: border-box;
         }
-        input[type="email"]:focus, input[type="password"]:focus {
+        input:focus {
             outline: none;
-            border-color: #1a3a3a;
+            border-color: #1a73e8;
             box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
         }
         .login-btn {
             width: 100%;
             padding: 12px;
-            background-color: #1a3a3a;
+            background-color: #1a73e8;
             color: white;
             border: none;
             border-radius: 5px;
@@ -143,7 +150,7 @@ if (isset($_GET['debug'])) {
         <h1 class="login-title">Connectez-vous sur Nexa</h1>
         
         <div class="test-credentials">
-            <h4>Compte de test créé automatiquement :</h4>
+            <h4>Compte de test :</h4>
             <p><strong>Email :</strong> test@test.com</p>
             <p><strong>Mot de passe :</strong> test123</p>
         </div>
