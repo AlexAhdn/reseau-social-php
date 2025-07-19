@@ -483,7 +483,6 @@ if ($stmt_suggested = $conn->prepare($sql_suggested)) {
 
 
 
-$conn->close();
 ?>
 
 <!DOCTYPE html>
