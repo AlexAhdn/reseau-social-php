@@ -1,63 +1,45 @@
 <?php
-// login.php
+session_start();
 require_once 'config.php';
 
 if (isLoggedIn()) {
-    redirect('index.php'); // Redirige si déjà connecté
+    redirect('index.php');
 }
 
-$email_err = $password_err = "";
-$email = ""; // Pour conserver la valeur entrée par l'utilisateur
+$error = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Valider l'email
-    if (empty(trim($_POST["email"]))) {
-        $email_err = "Veuillez entrer votre email.";
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    
+    if (empty($email) || empty($password)) {
+        $error = "Veuillez remplir tous les champs.";
     } else {
-        $email = trim($_POST["email"]);
-    }
-
-    // Valider le mot de passe
-    if (empty(trim($_POST["password"]))) {
-        $password_err = "Veuillez entrer votre mot de passe.";
-    } else {
-        $password = trim($_POST["password"]);
-    }
-
-    // Vérifier les identifiants
-    if (empty($email_err) && empty($password_err)) {
         $sql = "SELECT id, username, password_hash FROM users WHERE email = ?";
         if ($stmt = $conn->prepare($sql)) {
-            $stmt->bind_param("s", $param_email);
-            $param_email = $email;
-
-            if ($stmt->execute()) {
-                $stmt->store_result();
-                if ($stmt->num_rows == 1) {
-                    $stmt->bind_result($id, $username, $password_hash);
-                    if ($stmt->fetch()) {
-                        if (password_verify($password, $password_hash)) {
-                            // Mot de passe correct, démarrer une nouvelle session
-                            $_SESSION["user_id"] = $id;
-                            $_SESSION["username"] = $username;
-                            redirect('index.php'); // Redirige vers la page d'accueil
-                        } else {
-                            $password_err = "Le mot de passe que vous avez entré n'est pas valide.";
-                        }
-                    }
+            $stmt->bind_param("s", $email); // Utilisez $email au lieu de $param_email
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows == 1) {
+                $user = $result->fetch_assoc();
+                if (password_verify($password, $user['password_hash'])) {
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['username'] = $user['username'];
+                    redirect('index.php');
                 } else {
-                    $email_err = "Aucun compte trouvé avec cet email.";
+                    $error = "Mot de passe incorrect.";
                 }
             } else {
-                echo "Oops! Une erreur inattendue est survenue.";
+                $error = "Aucun compte trouvé avec cet email.";
             }
             $stmt->close();
+        } else {
+            $error = "Erreur de base de données.";
         }
     }
-    $conn->close();
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
