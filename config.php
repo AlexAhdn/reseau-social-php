@@ -27,9 +27,74 @@ if ($database_url) {
         $pdo = new PDO($dsn);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
-        // Créer une connexion mysqli compatible pour votre code existant
-        // Note: mysqli ne fonctionne pas avec PostgreSQL, on utilise PDO
-        $conn = $pdo;
+        // Créer une classe adaptateur pour simuler mysqli
+        class PDOAdapter {
+            private $pdo;
+            
+            public function __construct($pdo) {
+                $this->pdo = $pdo;
+            }
+            
+            public function prepare($sql) {
+                return new PDOStatementAdapter($this->pdo->prepare($sql));
+            }
+            
+            public function connect_error() {
+                return false; // PDO ne gère pas cette propriété
+            }
+        }
+        
+        class PDOStatementAdapter {
+            private $stmt;
+            private $params = [];
+            
+            public function __construct($stmt) {
+                $this->stmt = $stmt;
+            }
+            
+            public function bind_param($types, ...$params) {
+                $this->params = $params;
+                return true;
+            }
+            
+            public function execute() {
+                return $this->stmt->execute($this->params);
+            }
+            
+            public function get_result() {
+                $this->stmt->execute($this->params);
+                return new PDOResultAdapter($this->stmt);
+            }
+            
+            public function close() {
+                // PDO n'a pas besoin de fermer explicitement
+            }
+        }
+        
+        class PDOResultAdapter {
+            private $stmt;
+            
+            public function __construct($stmt) {
+                $this->stmt = $stmt;
+            }
+            
+            public function fetch_assoc() {
+                return $this->stmt->fetch(PDO::FETCH_ASSOC);
+            }
+            
+            public function num_rows() {
+                // PDO n'a pas cette méthode, on simule
+                $count = 0;
+                while ($this->stmt->fetch()) {
+                    $count++;
+                }
+                $this->stmt->execute(); // Réexécuter pour réutiliser
+                return $count;
+            }
+        }
+        
+        // Créer l'adaptateur
+        $conn = new PDOAdapter($pdo);
         
     } catch (PDOException $e) {
         die("Erreur de connexion à la base de données : " . $e->getMessage());
@@ -47,6 +112,8 @@ if ($database_url) {
         die("Échec de la connexion à la base de données : " . $conn->connect_error);
     }
 }
+
+// ... (gardez le reste des fonctions comme avant)
 
 /**
  * Fonction pour échapper les sorties HTML afin de prévenir les attaques XSS.
