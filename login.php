@@ -2,142 +2,34 @@
 session_start();
 require_once 'config.php';
 
-// Fonction pour créer les tables automatiquement
-function createTables($conn) {
-    $tables = [
-        "CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username VARCHAR(50) UNIQUE NOT NULL,
-            email VARCHAR(100) UNIQUE NOT NULL,
-            password_hash VARCHAR(255) NOT NULL,
-            profile_picture VARCHAR(255) DEFAULT 'default.jpg',
-            bio TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-        "CREATE TABLE IF NOT EXISTS posts (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            content TEXT,
-            image_path VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-        "CREATE TABLE IF NOT EXISTS likes (
-            id SERIAL PRIMARY KEY,
-            post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(post_id, user_id)
-        )",
-        "CREATE TABLE IF NOT EXISTS comments (
-            id SERIAL PRIMARY KEY,
-            post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            content TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-        "CREATE TABLE IF NOT EXISTS friendships (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            friend_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            status VARCHAR(20) DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, friend_id)
-        )",
-        "CREATE TABLE IF NOT EXISTS messages (
-            id SERIAL PRIMARY KEY,
-            sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            content TEXT NOT NULL,
-            is_read BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-        "CREATE TABLE IF NOT EXISTS notifications (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-            type VARCHAR(50) NOT NULL,
-            content TEXT NOT NULL,
-            link VARCHAR(255),
-            is_read BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-        "CREATE TABLE IF NOT EXISTS saved_posts (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, post_id)
-        )"
-    ];
+// DEBUG : Afficher les utilisateurs
+if (isset($_GET['debug'])) {
+    echo "<h2>Test de connexion à la base de données</h2>";
     
-    foreach ($tables as $sql) {
-        try {
-            $stmt = $conn->prepare($sql);
-            $stmt->execute();
-        } catch (Exception $e) {
-            // Ignore les erreurs si les tables existent déjà
-        }
-    }
-    
-    // Créer un utilisateur de test
     try {
-        $sql = "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?) ON CONFLICT (email) DO NOTHING";
-        $stmt = $conn->prepare($sql);
-        $username = 'test';
-        $email = 'test@test.com';
-        $password_hash = password_hash('test123', PASSWORD_DEFAULT);
-        $stmt->bind_param("sss", $username, $email, $password_hash);
-        $stmt->execute();
-    } catch (Exception $e) {
-        // Ignore si l'utilisateur existe déjà
-    }
-}
-
-// Créer les tables au chargement de la page
-createTables($conn);
-
-if (isLoggedIn()) {
-    redirect('index.php');
-}
-
-$error = "";
-$email = "";
-$password = "";
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
-    
-    if (empty($email) || empty($password)) {
-        $error = "Veuillez remplir tous les champs.";
-    } else {
-        $sql = "SELECT id, username, password_hash FROM users WHERE email = ?";
+        $sql = "SELECT id, username, email FROM users";
         if ($stmt = $conn->prepare($sql)) {
-            $stmt->bind_param("s", $email);
             $stmt->execute();
             $result = $stmt->get_result();
             
-            if ($result->num_rows == 1) {
-                $user = $result->fetch_assoc();
-                if (password_verify($password, $user['password_hash'])) {
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
-                    redirect('index.php');
-                } else {
-                    $error = "Mot de passe incorrect.";
+            echo "<h3>Utilisateurs dans la base :</h3>";
+            if ($result->num_rows() > 0) {
+                while ($row = $result->fetch_assoc()) {
+                    echo "ID: " . $row['id'] . " - Username: " . $row['username'] . " - Email: " . $row['email'] . "<br>";
                 }
             } else {
-                $error = "Aucun compte trouvé avec cet email.";
+                echo "Aucun utilisateur trouvé dans la base.";
             }
-            $stmt->close();
         } else {
-            $error = "Erreur de base de données.";
+            echo "Erreur de préparation de la requête.";
         }
+    } catch (Exception $e) {
+        echo "Erreur : " . $e->getMessage();
     }
+    exit();
 }
+
+// ... reste du code login.php ...
 ?>
 
 <!DOCTYPE html>
