@@ -4,7 +4,6 @@ services:
     name: reseau-social-db
     env: postgres
     plan: free
-    ipAllowList: []
 
   # Service web PHP
   - type: web
