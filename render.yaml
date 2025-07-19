@@ -2,8 +2,9 @@ services:
   # Base de données PostgreSQL
   - type: pserv
     name: reseau-social-db
-    env: postgresql
+    env: postgres
     plan: free
+    startCommand: postgres
 
   # Service web PHP
   - type: web
