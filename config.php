@@ -21,133 +21,131 @@ if ($database_url) {
     $username = $url['user'];
     $password = $url['pass'];
     
-    // Connexion PostgreSQL avec PDO
-    try {
-        $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;user=$username;password=$password";
-        $pdo = new PDO($dsn);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+   // Connexion PostgreSQL avec PDO
+try {
+    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;user=$username;password=$password";
+    $pdo = new PDO($dsn);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // Créer une classe adaptateur pour simuler mysqli
+    class PDOAdapter {
+        private $pdo;
         
-        // Créer une classe adaptateur pour simuler mysqli
-       class PDOAdapter {
-    private $pdo;
-    
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
-    
-    public function prepare($sql) {
-        return new PDOStatementAdapter($this->pdo->prepare($sql));
-    }
-    
-    public function connect_error() {
-        return false;
-    }
-    
-    public function close() {
-        $this->pdo = null;
-    }
-}
-
-class PDOStatementAdapter {
-    private $stmt;
-    private $params = [];
-    private $executed = false;
-    private $result = null;
-    private $last_insert_id = null;
-    
-    public function __construct($stmt) {
-        $this->stmt = $stmt;
-    }
-    
-    public function bind_param($types, &...$params) {
-        $this->params = $params;
-        return true;
-    }
-    
-    public function execute() {
-        $this->executed = $this->stmt->execute($this->params);
-        if ($this->executed) {
-            $this->last_insert_id = $this->stmt->lastInsertId();
+        public function __construct($pdo) {
+            $this->pdo = $pdo;
         }
-        return $this->executed;
-    }
-    
-    public function get_result() {
-        if ($this->executed) {
-            $this->result = new PDOResultAdapter($this->stmt);
+        
+        public function prepare($sql) {
+            return new PDOStatementAdapter($this->pdo->prepare($sql));
         }
-        return $this->result;
+        
+        public function connect_error() {
+            return false;
+        }
+        
+        public function close() {
+            $this->pdo = null;
+        }
     }
     
-    public function bind_result(&$var1, &$var2 = null, &$var3 = null, &$var4 = null, &$var5 = null) {
-        $this->result_vars = func_get_args();
-        return true;
-    }
-    
-    public function fetch() {
-        if ($this->result && $this->result_vars) {
-            $row = $this->result->fetch_assoc();
-            if ($row) {
-                $i = 0;
-                foreach ($this->result_vars as &$var) {
-                    $values = array_values($row);
-                    if (isset($values[$i])) {
-                        $var = $values[$i];
+    class PDOStatementAdapter {
+        private $stmt;
+        private $params = [];
+        private $executed = false;
+        private $result = null;
+        private $pdo;
+        
+        public function __construct($stmt) {
+            $this->stmt = $stmt;
+            $this->pdo = $stmt->getConnection();
+        }
+        
+        public function bind_param($types, &...$params) {
+            $this->params = $params;
+            return true;
+        }
+        
+        public function execute() {
+            $this->executed = $this->stmt->execute($this->params);
+            return $this->executed;
+        }
+        
+        public function get_result() {
+            if ($this->executed) {
+                $this->result = new PDOResultAdapter($this->stmt);
+            }
+            return $this->result;
+        }
+        
+        public function bind_result(&$var1, &$var2 = null, &$var3 = null, &$var4 = null, &$var5 = null) {
+            $this->result_vars = func_get_args();
+            return true;
+        }
+        
+        public function fetch() {
+            if ($this->result && $this->result_vars) {
+                $row = $this->result->fetch_assoc();
+                if ($row) {
+                    $i = 0;
+                    foreach ($this->result_vars as &$var) {
+                        $values = array_values($row);
+                        if (isset($values[$i])) {
+                            $var = $values[$i];
+                        }
+                        $i++;
                     }
-                    $i++;
+                    return true;
                 }
-                return true;
+            }
+            return false;
+        }
+        
+        public function store_result() {
+            return true;
+        }
+        
+        public function close() {
+            $this->stmt = null;
+        }
+        
+        public function insert_id() {
+            return $this->pdo->lastInsertId();
+        }
+    }
+    
+    class PDOResultAdapter {
+        private $stmt;
+        private $data = [];
+        private $position = 0;
+        
+        public function __construct($stmt) {
+            if ($stmt) {
+                $this->data = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
         }
-        return false;
-    }
-    
-    public function store_result() {
-        return true;
-    }
-    
-    public function close() {
-        $this->stmt = null;
-    }
-    
-    public function insert_id() {
-        return $this->last_insert_id;
-    }
-}
-
-class PDOResultAdapter {
-    private $stmt;
-    private $data = [];
-    private $position = 0;
-    
-    public function __construct($stmt) {
-        if ($stmt) {
-            $this->data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        public function fetch_assoc() {
+            if ($this->position < count($this->data)) {
+                return $this->data[$this->position++];
+            }
+            return false;
+        }
+        
+        public function num_rows() {
+            return count($this->data);
+        }
+        
+        public function data_seek($offset) {
+            $this->position = $offset;
         }
     }
     
-    public function fetch_assoc() {
-        if ($this->position < count($this->data)) {
-            return $this->data[$this->position++];
-        }
-        return false;
-    }
+    // Créer l'adaptateur
+    $conn = new PDOAdapter($pdo);
     
-    public function num_rows() {
-        return count($this->data);
-    }
-    
-    public function data_seek($offset) {
-        $this->position = $offset;
-    }
+} catch (PDOException $e) {
+    die("Erreur de connexion à la base de données : " . $e->getMessage());
 }
-        
-        // Créer l'adaptateur
-        $conn = new PDOAdapter($pdo);
-        
-    } catch (PDOException $e) {
-        die("Erreur de connexion à la base de données : " . $e->getMessage());
-    }
 } else {
     // Configuration locale (pour le développement)
     $servername = "localhost";
