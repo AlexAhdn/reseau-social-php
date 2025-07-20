@@ -3,161 +3,17 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Configuration pour Render avec PostgreSQL
-$database_url = getenv('DATABASE_URL');
+$servername = "sql306.infinityfree.com";
+$username = "if0_39505346t";
+$password = "NMuClAcgL6B";
+$dbname = "if0_39505346_nexapp";
 
-if ($database_url) {
-    // Parse DATABASE_URL pour Render
-    $url = parse_url($database_url);
-    
-    // Vérifier que l'URL est valide
-    if ($url === false || !isset($url['host'])) {
-        die("URL de base de données invalide");
-    }
-    
-    $host = $url['host'];
-    $port = isset($url['port']) ? $url['port'] : 5432;
-    $dbname = substr($url['path'], 1);
-    $username = $url['user'];
-    $password = $url['pass'];
-    
-   // Connexion PostgreSQL avec PDO
-try {
-    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;user=$username;password=$password";
-    $pdo = new PDO($dsn);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    // Créer une classe adaptateur pour simuler mysqli
-    class PDOAdapter {
-        private $pdo;
-        
-        public function __construct($pdo) {
-            $this->pdo = $pdo;
-        }
-        
-        public function prepare($sql) {
-            return new PDOStatementAdapter($this->pdo->prepare($sql));
-        }
-        
-        public function connect_error() {
-            return false;
-        }
-        
-        public function close() {
-            $this->pdo = null;
-        }
-    }
-    
-    class PDOStatementAdapter {
-        private $stmt;
-        private $params = [];
-        private $executed = false;
-        private $result = null;
-        private $pdo;
-        
-        public function __construct($stmt) {
-            $this->stmt = $stmt;
-            $this->pdo = $stmt->getConnection();
-        }
-        
-        public function bind_param($types, &...$params) {
-            $this->params = $params;
-            return true;
-        }
-        
-        public function execute() {
-            $this->executed = $this->stmt->execute($this->params);
-            return $this->executed;
-        }
-        
-        public function get_result() {
-            if ($this->executed) {
-                $this->result = new PDOResultAdapter($this->stmt);
-            }
-            return $this->result;
-        }
-        
-        public function bind_result(&$var1, &$var2 = null, &$var3 = null, &$var4 = null, &$var5 = null) {
-            $this->result_vars = func_get_args();
-            return true;
-        }
-        
-        public function fetch() {
-            if ($this->result && $this->result_vars) {
-                $row = $this->result->fetch_assoc();
-                if ($row) {
-                    $i = 0;
-                    foreach ($this->result_vars as &$var) {
-                        $values = array_values($row);
-                        if (isset($values[$i])) {
-                            $var = $values[$i];
-                        }
-                        $i++;
-                    }
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        public function store_result() {
-            return true;
-        }
-        
-        public function close() {
-            $this->stmt = null;
-        }
-        
-        public function insert_id() {
-            return $this->pdo->lastInsertId();
-        }
-    }
-    
-    class PDOResultAdapter {
-        private $stmt;
-        private $data = [];
-        private $position = 0;
-        
-        public function __construct($stmt) {
-            if ($stmt) {
-                $this->data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            }
-        }
-        
-        public function fetch_assoc() {
-            if ($this->position < count($this->data)) {
-                return $this->data[$this->position++];
-            }
-            return false;
-        }
-        
-        public function num_rows() {
-            return count($this->data);
-        }
-        
-        public function data_seek($offset) {
-            $this->position = $offset;
-        }
-    }
-    
-    // Créer l'adaptateur
-    $conn = new PDOAdapter($pdo);
-    
-} catch (PDOException $e) {
-    die("Erreur de connexion à la base de données : " . $e->getMessage());
-}
-} else {
-    // Configuration locale (pour le développement)
-    $servername = "localhost";
-    $username = "root";
-    $password = "";
-    $dbname = "reseau_social";
-    
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    
-    if ($conn->connect_error) {
-        die("Échec de la connexion à la base de données : " . $conn->connect_error);
-    }
+// Connexion à la base de données
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Vérifier la connexion
+if ($conn->connect_error) {
+    die("Échec de la connexion à la base de données : " . $conn->connect_error);
 }
 
 /**
@@ -191,7 +47,7 @@ function isLoggedIn() {
  *
  * @param int $user1_id L'ID du premier utilisateur.
  * @param int $user2_id L'ID du second utilisateur.
- * @param object $conn L'objet de connexion à la base de données.
+ * @param mysqli $conn L'objet de connexion à la base de données.
  * @return array Un tableau de messages, chacun étant un tableau associatif.
  */
 function getMessagesBetweenUsers($user1_id, $user2_id, $conn) {
@@ -225,7 +81,7 @@ function getMessagesBetweenUsers($user1_id, $user2_id, $conn) {
  * @param string $type Le type de notification (ex: 'follow', 'like', 'comment').
  * @param string $content Le contenu du message de la notification.
  * @param string|null $link Le lien associé à la notification (ex: vers un profil ou un post).
- * @param object $conn L'objet de connexion à la base de données.
+ * @param mysqli $conn L'objet de connexion à la base de données.
  * @return bool Vrai si la notification a été ajoutée, faux sinon.
  */
 function addNotification($user_id, $sender_id, $type, $content, $link = null, $conn) {
@@ -243,7 +99,7 @@ function addNotification($user_id, $sender_id, $type, $content, $link = null, $c
  * Récupère les notifications pour un utilisateur donné.
  *
  * @param int $user_id L'ID de l'utilisateur.
- * @param object $conn L'objet de connexion à la base de données.
+ * @param mysqli $conn L'objet de connexion à la base de données.
  * @param bool $unread_only Si vrai, ne récupère que les notifications non lues.
  * @param int $limit Le nombre maximum de notifications à récupérer.
  * @return array Un tableau de notifications.
@@ -275,7 +131,7 @@ function getNotifications($user_id, $conn, $unread_only = false, $limit = 10) {
  * Marque des notifications comme lues.
  *
  * @param array $notification_ids Un tableau d'IDs de notifications à marquer comme lues.
- * @param object $conn L'objet de connexion à la base de données.
+ * @param mysqli $conn L'objet de connexion à la base de données.
  * @return bool Vrai si les notifications ont été mises à jour, faux sinon.
  */
 function markNotificationsAsRead($notification_ids, $conn) {
